@@ -1,0 +1,183 @@
+variables:
+    InventorySwap_Variable_UUID:
+        type: playerstring
+        permanent: true
+    InventorySwap_Variable_Name:
+        type: playerstring
+        permanent: true	
+    InventorySwap_Variable_Switch:
+          type: player
+          default: 0
+          permanent: false
+          min: 0
+          max: 1
+    InventorySwap_Variable_Counter:
+          type: player
+          default: 0
+          permanent: false
+          min: 0
+          max: 27
+    InventorySwap_Variable_Counter_Inventory:
+          type: player
+          default: 0
+          permanent: false
+          min: 9
+          max: 36
+    Block_x_position:
+          type: playerstring
+          default: 0
+          min: 0
+    Block_z_position:
+          type: playerstring
+          default: 0
+          min: 0
+                 
+#Triggers on join to get the player's Name as a variable value#
+InventorySwap_Passive_Join_Name:
+    spell-class: ".PassiveSpell"
+    triggers:
+        - join
+    spells:
+        - InventorySwap_Data_Name
+
+#Triggers on join to get the player's UUID as a variable value#        
+InventorySwap_Passive_Join_UUID:
+    spell-class: ".PassiveSpell"
+    triggers:
+        - join
+    spells:
+        - InventorySwap_Data_UUID 
+
+#Triggers on swapping offhand, casting the complete spell#        
+InventorySwap_Passive_Switch:
+    spell-class: ".PassiveSpell"
+    cancel-default-action: true
+    triggers:
+        - offhandswap
+    spells:
+        - InventorySwap_Multi_Switch
+
+#Gets the player's UUID and set's the variable InventorySwap_Variable_UUID as that value#       
+InventorySwap_Data_UUID:
+    spell-class: ".targeted.DataSpell"
+    target-self: true
+    variable-name: InventorySwap_Variable_UUID
+    data-element: uuid
+    
+#Gets the player's Name and set's the variable InventorySwap_Variable_Name as that value#
+InventorySwap_Data_Name:
+    spell-class: ".targeted.DataSpell"
+    target-self: true
+    variable-name: InventorySwap_Variable_Name
+    data-element: name
+
+#Gets the player's current X position and set's the variable Block_x_position as that value#   
+InventorySwap_Data_Position_X:
+    spell-class: ".targeted.DataSpell"
+    target-self: true
+    variable-name: Block_x_position
+    data-element: location.x
+ 
+#Gets the player's current Z position and set's the variable Block_z_position as that value# 
+InventorySwap_Data_Position_Z:
+    spell-class: ".targeted.DataSpell"
+    target-self: true
+    variable-name: Block_z_position
+    data-element: location.z
+    
+#Clears the player's NBT storage for new values#
+#The clear is used to insure the storage is clean, reducing the chance of errors due to overlap#
+InventorySwap_Command_Remove_Storage:
+    spell-class: ".ExternalCommandSpell"
+    execute-on-console-instead: true
+    temporary-op: true
+    do-variable-replacement: true
+    command-to-execute: ["data remove storage %var:InventorySwap_Variable_UUID% Inventory"]
+    
+#Modifies the player's NBT storage to match the player's Inventory#
+InventorySwap_Command_Modify_Storage:
+    spell-class: ".ExternalCommandSpell"
+    execute-on-console-instead: true
+    temporary-op: true
+    do-variable-replacement: true
+    command-to-execute: ["data modify storage %var:InventorySwap_Variable_UUID% Inventory insert 0 from entity %var:InventorySwap_Variable_Name% Inventory[]"]
+    
+#Modifies a chest's contents to match the player's current NBT storage#
+#Due to how NBT data works, you can't directly modify a player's inventory directly, so a work around needed to be made#
+#By setting the data into a chest, then using /item from said chest, it takes the items from the chest and sets it in the players inventory#
+InventorySwap_Command_Modify_Block:
+    spell-class: ".ExternalCommandSpell"
+    execute-on-console-instead: true
+    temporary-op: true
+    do-variable-replacement: true
+    command-to-execute: ["data modify block %var:Block_x_position:0% 255 %var:Block_z_position:0% Items set from storage %var:InventorySwap_Variable_UUID% Inventory"]
+    
+#Modifies the player's NBT storage to match a chest's current items#
+#By doing this, a chest containing the second inventory isn't needed#
+InventorySwap_Command_Modify_Chest:
+    spell-class: ".ExternalCommandSpell"
+    execute-on-console-instead: true
+    temporary-op: true
+    do-variable-replacement: true
+    command-to-execute: ["data modify storage %var:InventorySwap_Variable_UUID% Inventory insert 0 from block %var:Block_x_position:0% 255 %var:Block_z_position:0%"]
+
+#Using a modified chest, it copies a item slot and replicates it in a corasponding player inventory slot#
+#The use of variable replacement means I don't need 9 seperate commands to copy and paste the items from the chest to the player's inventory#       
+InventorySwap_Command_Item_Switch_Hotbar:
+    spell-class: ".ExternalCommandSpell"
+    execute-on-console-instead: true
+    modifiers:
+        - variable InventorySwap_Variable_Counter<9 variable InventorySwap_Variable_Counter;+1
+        - variable InventorySwap_Variable_Counter=9 variable InventorySwap_Variable_Counter;=0
+    temporary-op: true
+    do-variable-replacement: true
+    command-to-execute: ["item replace entity %var:InventorySwap_Variable_Name% hotbar.%var:InventorySwap_Variable_Counter:0% from block %var:Block_x_position:0% 255 %var:Block_z_position:0% container.%var:InventorySwap_Variable_Counter:0%"]
+
+#Set a chest at the player's location offset#
+#Eliminates the need to have a chest for each player, though it has some drawbacks#
+#Currently, the chest needs to be set in a nearby chunk to stop lag spikes#
+#The chest also replaces the block it's set at and does not restore it after being removed#  
+InventorySwap_Command_Setblock_Chest_Hotbar: 
+    spell-class: ".ExternalCommandSpell"
+    execute-on-console-instead: true
+    temporary-op: true
+    do-variable-replacement: true
+    command-to-execute: ["setblock %var:Block_x_position:0% 255 %var:Block_z_position:0% chest replace"]
+
+#Sets air at the player's location offset#
+#Same issues as the spell above#    
+InventorySwap_Command_Setblock_Air_Hotbar:
+    spell-class: ".ExternalCommandSpell"
+    execute-on-console-instead: true
+    temporary-op: true
+    do-variable-replacement: true
+    command-to-execute: ["setblock %var:Block_x_position:0% 255 %var:Block_z_position:0% air replace"]
+    
+InventorySwap_Multi_Switch:
+    spell-class: ".MultiSpell"
+    y-offset: 0
+    stop-on-fail: false
+    require-entity-target: false
+    point-blank: false
+    spells:
+        - InventorySwap_Data_Position_X
+        - InventorySwap_Data_Position_Z
+        - InventorySwap_Command_Setblock_Chest_Inventory
+        - InventorySwap_Command_Setblock_Chest_Hotbar
+        - InventorySwap_Command_Modify_Block
+        - InventorySwap_Command_Remove_Storage 
+        - InventorySwap_Command_Modify_Storage
+        - InventorySwap_Command_Item_Switch_Hotbar
+        - InventorySwap_Command_Item_Switch_Hotbar
+        - InventorySwap_Command_Item_Switch_Hotbar
+        - InventorySwap_Command_Item_Switch_Hotbar
+        - InventorySwap_Command_Item_Switch_Hotbar
+        - InventorySwap_Command_Item_Switch_Hotbar
+        - InventorySwap_Command_Item_Switch_Hotbar
+        - InventorySwap_Command_Item_Switch_Hotbar
+        - InventorySwap_Command_Item_Switch_Hotbar
+        - InventorySwap_Command_Modify_Block
+        - InventorySwap_Command_Setblock_Air_Inventory
+        - InventorySwap_Command_Setblock_Air_Hotbar
+        
+        
